@@ -1,0 +1,2 @@
+RewriteEngine on
+RegriteRule ^/(.+)$ index.php?key=$1
