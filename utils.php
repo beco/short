@@ -152,8 +152,6 @@ function get_url($code = "", $meta = array()){
 			LEFT JOIN log AS l
 				ON i.instance_id = l.instance_id
 			WHERE i.strkey = '%s'
-				AND l.type = 'access'
-				AND l.outcome = 'ok'
 			GROUP BY iid
 			LIMIT 1", $code);
 		$res = mysql_query($sql);
@@ -182,9 +180,12 @@ function get_url($code = "", $meta = array()){
 			
 		}else{
 			if(mysql_affected_rows()){
-				$ret["cause"] = "seems there is no url associated to this code [error code: 5]";
+				$ret["cause"] = "seems there is no url associated to this code [error code: 5]\n";
 			} else {
-				$ret["cause"] = "something is wrong with the db [error code: 4]\n";
+				$ret["cause"] = "something is wrong with the db [error code: 4]$sql\n";
+				if(mysql_error()) {
+				    $ret["cause"] .= "\n mysql said: ".mysql_error();
+				}
 			}
 		}
 	}
