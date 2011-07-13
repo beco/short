@@ -1,0 +1,23 @@
+DESCRIPTION
+
+A home brewed url shortener with a couple of extra features, like:
+- limit access to the 'masked' url to a certain number of hits
+- have the ability to notify when any url is accessed (or tried to)
+- add notes to each instance
+
+
+The two main concepts are: url and instance, additionally there are log entries.
+
+Each url is stored uniquely in the database, if two different users want to add the same url, the url stays the same in a single database row, but a new instance is created. Actually there is exactly one instance for each user/url pair.
+
+URL A -+- INSTANCE 1 +
+       |             · -  USER 1
+       +- INSTANCE 2 +
+       |             
+       +- INSTANCE 3 + 
+                     · -  USER 2
+URL B -+- INSTANCE 4 +
+
+
+INSTALLATION
+//TO-DO
