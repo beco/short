@@ -1,5 +1,10 @@
 #!/usr/bin/php
 <?php
+/**
+
+Command Line tool to work with this shortener.
+
+**/
 
 include_once("base.php");
 include_once("utils.php");
