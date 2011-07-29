@@ -3,10 +3,13 @@
 // Common general functions
 
 function is_url($str = "") {
-	$pat = "/(http|https):\/\/([\w-]+\.)+[\w-]+(\/[\w- .\/\?%&=]*)?/";
-	return preg_match($pat, $str);
+	$pat = "/^(http|https)(:\/\/)([\w-\.]+[\w-]{2,6})(\/[\w- .\/\?%&=]*)?$/";
+	preg_match($pat, $str, $m);
+	if($m[1] != "http" && $m[1] != "https") {
+	$str = "http://".$str;
+	}
+	return $str;
 }
-
 function sql_clean($str) {
 	//TODO!
 	return $str;
@@ -63,7 +66,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 	//store it if it isn't
 	//get the url's id
 	$url_id = "";
-	if(mysql_affected_rows() == 1) {
+	if (mysql_affected_rows() == 1) {
 		$row = mysql_fetch_assoc($res);
 		$url_id = $row["url_id"];
 	} else {
@@ -83,7 +86,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 		$url_id, rand(0,1000), $hits, $mail, $note
 	);
 	$res = mysql_query($sql);
-	if(mysql_error() || mysql_affected_rows() != 1){
+	if (mysql_error() || mysql_affected_rows() != 1) {
 		die("can't make the insert of a new instance<br>$sql<br>".mysql_error());
 	}
 	
@@ -97,20 +100,29 @@ function store_url($str, $post_data, $meta_data = array()) {
 	//log this new creation
 	store_log($new_id, "create", "ok", $meta_data);
 	
+	if ($mail != "") {
+	
+		$val_code = md5(time().rand().$mail);
+		$sql = "UPDATE INSTANCE SET validation_code = '$val_code' WHERE instance_id= '$new_id'";
+		mysql_query($sql);
+		if (!send_activation($mail,$val_code)) {
+			echo"can't send the activation email";
+		}
+	}
+	
+	
 	//return the string id
 	return $str_id;
 }
 
-function send_notifications($code, $row) {
-	$mail_pattern = "/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/";
-	$template = "
-Hello, you asked us to send you a notiffication when anyone acccess\n
-$
-	";
-	if(preg_match($mail_pattern, $row["emails"])) {
-		
-	}
-	return true;
+function send_notifications($notif_mail, $notif_url, $notif_notes) {
+
+	$to      = $notif_mail;
+	$subject = "Your URL has been used";
+	$message = "Your URL: ".$notif_url." notes: ".$notif_notes.", has been used";
+	$headers = 'From: noreply@urlshortener.com' . "\r\n" .'Reply-To: noreply@urlshortener.com'; 
+	$headers = $headers."\r\n" .'X-Mailer: PHP/' . phpversion();
+	mail ($to, $subject, $message, $headers);
 }
 
 function store_log($iid, $action, $outcome, $meta = array()){
@@ -126,7 +138,7 @@ function store_log($iid, $action, $outcome, $meta = array()){
 					"VALUES(%d,'%s','%s','%s','%s','%s')",
 					$iid, $action, $outcome, $ip, $host, $agent);
 	mysql_query($sql);
-	if(mysql_error()){
+	if (mysql_error()) {
 		echo mysql_error()."\n".$sql;
 	}
 	return mysql_error() == "";
@@ -141,17 +153,18 @@ function get_url($code = "", $meta = array()){
 	);
 
 	if($code != "") {
-		// this sql should count on log with outcome = "ok"
+		// this sql should count on log with outcome = "ok".......AND l.type = 'access'
 		$sql = sprintf("
 			SELECT i.instance_id AS iid, u.url AS url, i.active AS active,
-				i.max_hits AS max_hits, i.notify_email AS emails, 
-				count(l.log_id) AS act_hits
+				i.max_hits AS max_hits, i.notify_email AS emails, i.notes AS notes, 
+				i.notifications AS notify, count(l.log_id) AS act_hits
 			FROM instance AS i
 			LEFT JOIN url AS u
 				ON u.url_id = i.url_id
 			LEFT JOIN log AS l
 				ON i.instance_id = l.instance_id
 			WHERE i.strkey = '%s'
+				
 			GROUP BY iid
 			LIMIT 1", $code);
 		$res = mysql_query($sql);
@@ -168,10 +181,10 @@ function get_url($code = "", $meta = array()){
 				store_log($row["iid"],"access","error", $meta);
 				return $ret;
 			}
-			
-			if($row["emails"] != "") {
-				send_notifications($code, $row);
+			if($row["emails"] != "" && $row["notify"] == 1) {
+				send_notifications($row["emails"],$row["url"],$row["notes"]);
 			}
+			
 			$ret["status"] = "OK";
 			$ret["cause"]  = "we're all right!";
 			$ret["url"]    = $row["url"];
@@ -255,5 +268,52 @@ function get_url_info($key) {
 	}
 	return $ret;
 }
+
+
+
+
+
+function send_activation($mail,$val_code) {
+
+	$to      = $mail;
+	$subject = "Url Shortener activation";
+	$message = "Please activate your email address in order to receive notifications abour your ";
+	$message = $message."url by clicking the following link:\r ";
+	$message = $message."http://127.0.0.1/short/index.php?val=".$val_code."\r\r";
+	$headers = 'From: noreply@urlshortener.com' . "\r\n" .'Reply-To: noreply@urlshortener.com'; 
+	$headers = $headers."\r\n" .'X-Mailer: PHP/' . phpversion();
+	mail ($to, $subject, $message, $headers);
+	return true;
+}
+
+function activate_email($val_code) {
+
+	$sql = "SELECT instance_id FROM INSTANCE WHERE validation_code = '$val_code'";
+	$res = mysql_query($sql);
+	$inst_id = mysql_result($res,0);
+	$sql = "UPDATE INSTANCE SET notifications = 1 WHERE instance_id = '$inst_id'";
+	if(!mysql_query($sql)) {
+		die("can't activate your email<br><br>".mysql_error());
+	}
+	echo "<script type='text/javascript'>alert('your email address has been validated')</script>";
+	return true;
+}
+
+function is_email($mail) {
+
+	if ($mail == "") {
+	return true;
+	}
+
+	$mail_pattern = "/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@[a-z0-9-]+(\.[a-z0-9-]+)*(\.[a-z]{2,4})$/";
+	if(!preg_match($mail_pattern, $mail)) {
+		echo "<script type='text/javascript'>alert('your email address is incorrect')</script>";
+		return false;
+		} 
+	else 
+	return true;
+	
+}
+
 
 ?>

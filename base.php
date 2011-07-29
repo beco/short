@@ -8,8 +8,8 @@ $db   = "db76035_short";
 */
 
 $host = "127.0.0.1";
-$user = "short";
-$pass = "h0la";
+$user = "root";
+$pass = "root";
 $db   = "short";
 
 $link = mysql_connect($host, $user, $pass);
@@ -22,6 +22,6 @@ if(!$db_selected) {
  * DEFINITIONS
  */
 
-DEFINE("MAIN_URL","http://localhost/index.php?key=%s");
+DEFINE("MAIN_URL","http://127.0.0.1/short/index.php?key=%s");
 
 ?>

@@ -44,12 +44,16 @@ if(isset($_GET["key"])) {
 			if($mode == "preview") {
     			    echo "you want to go to: ".$url["url"];
 			} else {
-			    header("Location: ".$url["url"]);
+				header("Location: ".$url['url']);
 			}
 			die();
 		}	
 	}
 	echo "something went wrong, message: ".$url["cause"];
+}
+
+if(isset($_GET["val"])) {
+	activate_email($_GET["val"]);
 }
 
 if(isset($_POST["url"])) {
@@ -59,17 +63,20 @@ if(isset($_POST["url"])) {
 		"notes"    => $_POST["notes"],
 		"email"    => $_POST["email"]
 	);
-	$url = $_POST["url"];
-	$strkey = store_url($url, $post_data, gather_meta());
-	$uurl = complete_url($strkey);
-	$surl = complete_url($strkey."!");
-	$msg  = "Ok, now your url ( $url ) has a new code: <a href='$uurl'>$strkey</a>, ";
-	$msg .= "<br>\n$uurl ";
-	$msg .= "<a href='#' onClick='copyToClipboard(\"".$uurl."\")'>Copy to Clipboard</a><br>\n";
-	$msg .= "The stats url is $surl<br>";
-	$msg .= "Remember that attaching a '.' at the end of any URL you have the preview of the URL you're about to be redirected.";
-	$msg .= "</div>";
-
+	
+	$url = is_url($_POST["url"]);
+		if(is_email($_POST["email"])) {
+			$strkey = store_url($url, $post_data, gather_meta());
+			$uurl = complete_url($strkey);
+			$surl = complete_url($strkey."!");
+			$msg  = "Ok, now your url ( $url ) has a new code: <a href='$uurl'>$strkey</a>, ";
+			$msg .= "<br>\n$uurl ";
+			$msg .= "<a href='#' onClick='copyToClipboard(\"".$uurl."\")'>Copy to Clipboard</a><br>\n";
+			$msg .= "The stats url is $surl<br>";
+			$msg .= "Remember that attaching a '.' at the end of any URL you have the preview of the URL you're about to be redirected.";
+			$msg .= "</div>";
+		}
+	
 }
 
 ?>
@@ -159,5 +166,6 @@ if($msg) {
 <div>url: <input type=text name=url id=f_url></div>
 <div># hits allowed: <input type=text name=max_hits size=3><small>(0/blank for unlimited)</small></div>
 <div>notes?<br><textarea name=notes></textarea></div>
+<div>mail notifications: <input type=text name=email id=f_email></div>
 <input type=submit>
 </form>
