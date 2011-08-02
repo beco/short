@@ -314,6 +314,28 @@ function is_email($mail) {
 	return true;
 	
 }
+    
+function generate_xml($array) {
+	$xml = '<?xml version="1.0" encoding="UTF-8" ?>' . "\n";
+	$xml .= '<url>'."\n";
+	$xml .= fill_xml($array);
+	$xml .= '</url>'. "\n";
+	return $xml;
+}
+
+function fill_xml($array) {
+	$xml = '';
+	if (is_array($array) || is_object($array)) {
+		foreach ($array as $key=>$value) {
+		
+			$xml .= '<' . $key . '>' . "\n" . fill_xml($value) . '</' . $key . '>' . "\n";
+		}
+	} else {
+		$xml = htmlspecialchars($array, ENT_QUOTES) . "\n";
+	}
+
+	return $xml;
+}
 
 
 ?>
