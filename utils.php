@@ -80,10 +80,11 @@ function store_url($str, $post_data, $meta_data = array()) {
 	$hits = isset($post_data["max_hits"]) && is_int(0 + $post_data["max_hits"])?$post_data["max_hits"]:0;
 	$note = isset($post_data["notes"])?$post_data["notes"]:"";
 	$mail = isset($post_data["email"])?$post_data["email"]:"";
+	$stats = isset($post_data["stats"])?$post_data["stats"]:"";
 	$sql = sprintf(
-		"INSERT INTO INSTANCE(url_id, strkey, active, max_hits, notify_email, notes) ".
-		"VALUES('%d','%d','1','%d','%s', '%s')",
-		$url_id, rand(0,1000), $hits, $mail, $note
+		"INSERT INTO instance (url_id, strkey, active, max_hits, notify_email, notes, private_stats) ".
+		"VALUES('%d','%d','1','%d','%s', '%s','%d')",
+		$url_id, rand(0,1000), $hits, $mail, $note, $stats
 	);
 	$res = mysql_query($sql);
 	if (mysql_error() || mysql_affected_rows() != 1) {
@@ -94,7 +95,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 	$new_id = mysql_insert_id();
 	$str_id = id_to_key($new_id);
 	
-	$sql = "UPDATE INSTANCE SET strkey = '$str_id' WHERE instance_id = $new_id";
+	$sql = "UPDATE instance SET strkey = '$str_id' WHERE instance_id = $new_id";
 	mysql_query($sql);
 	
 	//log this new creation
@@ -103,7 +104,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 	if ($mail != "") {
 	
 		$val_code = md5(time().rand().$mail);
-		$sql = "UPDATE INSTANCE SET validation_code = '$val_code' WHERE instance_id= '$new_id'";
+		$sql = "UPDATE instance SET validation_code = '$val_code' WHERE instance_id= '$new_id'";
 		mysql_query($sql);
 		if (!send_activation($mail,$val_code)) {
 			echo"can't send the activation email";
@@ -115,13 +116,19 @@ function store_url($str, $post_data, $meta_data = array()) {
 	return $str_id;
 }
 
-function send_notifications($notif_mail, $notif_url, $notif_notes) {
+function send_notifications($notif_mail, $notif_url, $notif_notes, $inst_id) {
 
 	$to      = $notif_mail;
 	$subject = "Your URL has been used";
-	$message = "Your URL: ".$notif_url." notes: ".$notif_notes.", has been used";
-	$headers = 'From: noreply@urlshortener.com' . "\r\n" .'Reply-To: noreply@urlshortener.com'; 
-	$headers = $headers."\r\n" .'X-Mailer: PHP/' . phpversion();
+	$message = "<html><head><title>Your URL has been used</title></head><body>";
+	$message .= "Your URL has been used<br><br>URL: ".$notif_url."<br><br>Notes: ".$notif_notes."<br><br><br>";
+	$message .= "Thank you for using our service.";
+	$message .= "<br><br><br><br>if you dont want to receive more of these notifications,";
+	$message .= " <a href='http://pruebas.kamikazelab.com/short/index.php?off=".$inst_id."'> click here.</a><br></body></html>";
+	$headers = 'MIME-Version: 1.0' . "\r\n";
+	$headers .= 'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+	$headers .= 'From: URL Shortener<noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
+	$headers .= "\r\n" .'X-Mailer: PHP/' . phpversion();
 	mail ($to, $subject, $message, $headers);
 }
 
@@ -176,13 +183,13 @@ function get_url($code = "", $meta = array()){
 				$ret["cause"] = "corresponding link is not active any more";
 				store_log($row["iid"],"access","error", $meta);
 				return $ret;
-			} elseif($row["max_hits"] > 0 && $row["act_hits"] >= $row["max_hits"]) {
+			} elseif($row["max_hits"] > 0 && $row["act_hits"] > $row["max_hits"]) {
 				$ret["cause"] = "this link had a certain number of allowed hits which has already been reached";
 				store_log($row["iid"],"access","error", $meta);
 				return $ret;
 			}
 			if($row["emails"] != "" && $row["notify"] == 1) {
-				send_notifications($row["emails"],$row["url"],$row["notes"]);
+				send_notifications($row["emails"],$row["url"],$row["notes"], $row["iid"]);
 			}
 			
 			$ret["status"] = "OK";
@@ -277,23 +284,26 @@ function send_activation($mail,$val_code) {
 
 	$to      = $mail;
 	$subject = "Url Shortener activation";
-	$message = "Please activate your email address in order to receive notifications abour your ";
-	$message = $message."url by clicking the following link:\r ";
-	$message = $message."http://127.0.0.1/short/index.php?val=".$val_code."\r\r";
-	$headers = 'From: noreply@urlshortener.com' . "\r\n" .'Reply-To: noreply@urlshortener.com'; 
-	$headers = $headers."\r\n" .'X-Mailer: PHP/' . phpversion();
+	$message = "<html><head><title>Activate your email address</title></head><body>";
+	$message .= "<br><br>Please activate your email address in order to receive notifications abour your ";
+	$message .= "url by clicking the following link:\r <br><br>";
+	$message .= "http://pruebas.kamikazelab.com/short/index.php?val=".$val_code."\r\r<br><br></body></html>";
+	$headers = 'MIME-Version: 1.0' . "\r\n";
+	$headers .= 'Content-type: text/html; charset=iso-8859-1' . "\r\n";
+	$headers .= 'From: URL Shortener <noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
+	$headers .= "\r\n" .'X-Mailer: PHP/' . phpversion();
 	mail ($to, $subject, $message, $headers);
 	return true;
 }
 
 function activate_email($val_code) {
 
-	$sql = "SELECT instance_id FROM INSTANCE WHERE validation_code = '$val_code'";
+	$sql = "SELECT instance_id FROM instance WHERE validation_code = '$val_code'";
 	$res = mysql_query($sql);
 	$inst_id = mysql_result($res,0);
-	$sql = "UPDATE INSTANCE SET notifications = 1 WHERE instance_id = '$inst_id'";
+	$sql = "UPDATE instance SET notifications = 1 WHERE instance_id = '$inst_id'";
 	if(!mysql_query($sql)) {
-		die("can't activate your email<br><br>".mysql_error());
+		die("can't validate your email<br><br>".mysql_error());
 	}
 	echo "<script type='text/javascript'>alert('your email address has been validated')</script>";
 	return true;
@@ -335,6 +345,25 @@ function fill_xml($array) {
 	}
 
 	return $xml;
+}
+
+function turn_off_notif($inst_id){
+
+	$sql = "UPDATE instance SET notifications = 0 WHERE instance_id = '$inst_id'";
+	if(!mysql_query($sql)) {
+		die("something went wrong with the data base".mysql_error());
+	}
+	echo "<script type='text/javascript'>alert('you will not receive more notifications from this URL')</script>";
+	return true;
+}
+
+function is_private ($key) {
+	$sql = "SELECT private_stats FROM instance WHERE strkey = '$key'";
+	$res = mysql_query($sql);
+	if(mysql_result($res,0)==1)
+		return true;
+	else
+		return false;	
 }
 
 

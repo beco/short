@@ -22,18 +22,23 @@ if(isset($_GET["key"])) {
 	print_r($m);
 */
 	if($mode == "info") {
-		$url_info  = get_url_info($m[1], $meta);
-		echo "<ul>";
-		foreach(array_keys($url_info) as $k) {
-			if($k == "log") {
-				continue;
+		if(!is_private($m[1])) {
+			$url_info  = get_url_info($m[1], $meta);
+			echo "<ul>";
+			foreach(array_keys($url_info) as $k) {
+				if($k == "log") {
+					continue;
+				}
+				echo "<li><b>$k</b>: ".$url_info[$k]."</il>";
 			}
-			echo "<li><b>$k</b>: ".$url_info[$k]."</il>";
+			echo "<li><b>entry log</b>: (".count($url_info["log"]).")</li>";
+			echo "<ul>";
+			foreach($url_info["log"] as $l) {
+				echo "<li>".$l["tstamp"]."</li>";
+			}
 		}
-		echo "<li><b>entry log</b>: (".count($url_info["log"]).")</li>";
-		echo "<ul>";
-		foreach($url_info["log"] as $l) {
-			echo "<li>".$l["tstamp"]."</li>";
+		else {
+			echo "we are sorry but the statitistics for this URL are private.";
 		}
 		echo "</ul>";
 		echo "</ul>";
@@ -56,12 +61,21 @@ if(isset($_GET["val"])) {
 	activate_email($_GET["val"]);
 }
 
+if(isset($_GET["off"])) {
+	turn_off_notif($_GET["off"]);
+}
+
 if(isset($_POST["url"])) {
 	//store url
+	$stats = 0;
+	if(isset($_POST["stats"])) {
+		$stats =1;
+	}
 	$post_data = array(
 		"max_hits" => $_POST["max_hits"],
 		"notes"    => $_POST["notes"],
-		"email"    => $_POST["email"]
+		"email"    => $_POST["email"],
+		"stats"    => $stats
 	);
 	
 	$url = is_url($_POST["url"]);
@@ -70,9 +84,9 @@ if(isset($_POST["url"])) {
 			$uurl = complete_url($strkey);
 			$surl = complete_url($strkey."!");
 			$msg  = "Ok, now your url ( $url ) has a new code: <a href='$uurl'>$strkey</a>, ";
-			$msg .= "<br>\n$uurl ";
-			$msg .= "<a href='#' onClick='copyToClipboard(\"".$uurl."\")'>Copy to Clipboard</a><br>\n";
-			$msg .= "The stats url is $surl<br>";
+			$msg .= "<br><br>\n$uurl ";
+			//$msg .= "<a href='#' onClick='copyToClipboard(\"".$uurl."\")'>Copy to Clipboard</a><br>\n";
+			$msg .= "<br><br>The stats url is $surl<br>";
 			$msg .= "Remember that attaching a '.' at the end of any URL you have the preview of the URL you're about to be redirected.";
 			$msg .= "</div>";
 		}
@@ -167,5 +181,6 @@ if($msg) {
 <div># hits allowed: <input type=text name=max_hits size=3><small>(0/blank for unlimited)</small></div>
 <div>notes?<br><textarea name=notes></textarea></div>
 <div>mail notifications: <input type=text name=email id=f_email></div>
+<div><input type=checkbox name=stats id=f_stats>private statistics </div>
 <input type=submit>
 </form>
