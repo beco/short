@@ -3,12 +3,19 @@
 // Common general functions
 
 function is_url($str = "") {
-	$pat = "/^(http|https)(:\/\/)([\w-\.]+[\w-]{2,6})(\/[\w- .\/\?%&=]*)?$/";
-	preg_match($pat, $str, $m);
-	if($m[1] != "http" && $m[1] != "https") {
-	$str = "http://".$str;
+	$pat = "/^((http|https)(:[\/]{2,2}))?+([^\.][\w-\.]+[\w-]{2,6})(\/[\w- .\/\?%&=]*)?/";		     
+	if(preg_match($pat, $str, $m)) {
+		if($m[2] != "http" && $m[2] != "https") {
+		$str = "http://".$str;
+		}
+		return $str;
 	}
-	return $str;
+	else {
+	echo ("<script type='text/javascript'>alert('wrong URL')</script>");
+		$str="";
+		return $str;
+	}
+	
 }
 function sql_clean($str) {
 	//TODO!
@@ -81,6 +88,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 	$note = isset($post_data["notes"])?$post_data["notes"]:"";
 	$mail = isset($post_data["email"])?$post_data["email"]:"";
 	$stats = isset($post_data["stats"])?$post_data["stats"]:"";
+	$custom = isset($post_data["custom"])?$post_data["custom"]:"";
 	$sql = sprintf(
 		"INSERT INTO instance (url_id, strkey, active, max_hits, notify_email, notes, private_stats) ".
 		"VALUES('%d','%d','1','%d','%s', '%s','%d')",
@@ -94,7 +102,9 @@ function store_url($str, $post_data, $meta_data = array()) {
 	//get a new string id for the new row
 	$new_id = mysql_insert_id();
 	$str_id = id_to_key($new_id);
-	
+	if($custom !=""){
+		$str_id = $custom;
+	}
 	$sql = "UPDATE instance SET strkey = '$str_id' WHERE instance_id = $new_id";
 	mysql_query($sql);
 	
@@ -124,10 +134,10 @@ function send_notifications($notif_mail, $notif_url, $notif_notes, $inst_id) {
 	$message .= "Your URL has been used<br><br>URL: ".$notif_url."<br><br>Notes: ".$notif_notes."<br><br><br>";
 	$message .= "Thank you for using our service.";
 	$message .= "<br><br><br><br>if you dont want to receive more of these notifications,";
-	$message .= " <a href='http://pruebas.kamikazelab.com/short/index.php?off=".$inst_id."'> click here.</a><br></body></html>";
+	$message .= " <a href='http://kmkz.mx/index.php?off=".$inst_id."'> click here.</a><br></body></html>";
 	$headers = 'MIME-Version: 1.0' . "\r\n";
 	$headers .= 'Content-type: text/html; charset=iso-8859-1' . "\r\n";
-	$headers .= 'From: URL Shortener<noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
+	$headers .= 'From: Kamikaze Lab URL Shortener<noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
 	$headers .= "\r\n" .'X-Mailer: PHP/' . phpversion();
 	mail ($to, $subject, $message, $headers);
 }
@@ -283,14 +293,14 @@ function get_url_info($key) {
 function send_activation($mail,$val_code) {
 
 	$to      = $mail;
-	$subject = "Url Shortener activation";
+	$subject = "Kamikaze Lab Url Shortener activation";
 	$message = "<html><head><title>Activate your email address</title></head><body>";
 	$message .= "<br><br>Please activate your email address in order to receive notifications abour your ";
 	$message .= "url by clicking the following link:\r <br><br>";
-	$message .= "http://pruebas.kamikazelab.com/short/index.php?val=".$val_code."\r\r<br><br></body></html>";
+	$message .= "http://kmkz.mx/index.php?val=".$val_code."\r\r<br><br></body></html>";
 	$headers = 'MIME-Version: 1.0' . "\r\n";
 	$headers .= 'Content-type: text/html; charset=iso-8859-1' . "\r\n";
-	$headers .= 'From: URL Shortener <noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
+	$headers .= 'From: Kamikaze Lab URL Shortener <noreply@kamikazelab.com>' . "\r\n" .'Reply-To: noreply@kamikazelab.com'; 
 	$headers .= "\r\n" .'X-Mailer: PHP/' . phpversion();
 	mail ($to, $subject, $message, $headers);
 	return true;
@@ -299,14 +309,20 @@ function send_activation($mail,$val_code) {
 function activate_email($val_code) {
 
 	$sql = "SELECT instance_id FROM instance WHERE validation_code = '$val_code'";
+	
 	$res = mysql_query($sql);
+	if(mysql_num_rows($res) != 0) {
 	$inst_id = mysql_result($res,0);
 	$sql = "UPDATE instance SET notifications = 1 WHERE instance_id = '$inst_id'";
-	if(!mysql_query($sql)) {
-		die("can't validate your email<br><br>".mysql_error());
+		
+		if(!mysql_query($sql)) {
+			die("can't validate your email<br><br>".mysql_error());
+		}
+		echo "<script type='text/javascript'>alert('your email address has been validated')</script>";
+		return true;
+	} else {
+	echo "<script type='text/javascript'>alert('Something went wrong, cannot validate your email')</script>";
 	}
-	echo "<script type='text/javascript'>alert('your email address has been validated')</script>";
-	return true;
 }
 
 function is_email($mail) {
@@ -320,9 +336,15 @@ function is_email($mail) {
 		echo "<script type='text/javascript'>alert('your email address is incorrect')</script>";
 		return false;
 		} 
-	else 
-	return true;
-	
+	else {
+		$kamikaze_pattern = "/^[_a-z0-9-]+(\.[_a-z0-9-]+)*@kamikazelab.com$/";
+		if(!preg_match($kamikaze_pattern, $mail)){
+			echo "<script type='text/javascript'>alert('sorry, this service is only available for Kamikaze Lab users')</script>";
+			return false;
+		}
+		else
+		return true;
+	}
 }
     
 function generate_xml($array) {
@@ -349,12 +371,19 @@ function fill_xml($array) {
 
 function turn_off_notif($inst_id){
 
-	$sql = "UPDATE instance SET notifications = 0 WHERE instance_id = '$inst_id'";
-	if(!mysql_query($sql)) {
-		die("something went wrong with the data base".mysql_error());
-	}
-	echo "<script type='text/javascript'>alert('you will not receive more notifications from this URL')</script>";
-	return true;
+	$sql = "SELECT instance_id FROM instance WHERE instance_id = '$inst_id'";
+	$res = mysql_query($sql);
+	if(mysql_num_rows($res) != 0) {
+		$inst_id = mysql_result($res,0);
+		$sql = "UPDATE instance SET notifications = 0 WHERE instance_id = '$inst_id'";
+		if(!mysql_query($sql)) {
+			die("something went wrong with the data base".mysql_error());
+		}
+		echo "<script type='text/javascript'>alert('you will not receive more notifications from this URL')</script>";
+		return true;
+	}else 
+	echo "<script type='text/javascript'>alert('Something went wrong, cannot find your email')</script>";
+	
 }
 
 function is_private ($key) {
@@ -364,6 +393,18 @@ function is_private ($key) {
 		return true;
 	else
 		return false;	
+}
+
+function is_available ($custom_url) {
+	$sql = "SELECT instance_id FROM instance WHERE strkey = '".$custom_url."'";
+	$res = mysql_query($sql);
+	if(mysql_result($res,0)!=0) {
+		echo "<script type='text/javascript'>alert('That URL already exists.')</script>";
+		return false;
+	}	
+	else 
+		return true;
+
 }
 
 

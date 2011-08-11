@@ -75,11 +75,12 @@ if(isset($_POST["url"])) {
 		"max_hits" => $_POST["max_hits"],
 		"notes"    => $_POST["notes"],
 		"email"    => $_POST["email"],
+		"custom"   => $_POST["custom"],
 		"stats"    => $stats
 	);
 	
 	$url = is_url($_POST["url"]);
-		if(is_email($_POST["email"])) {
+		if((is_email($_POST["email"])) && $url!="" && is_available($_POST["custom"])) {
 			$strkey = store_url($url, $post_data, gather_meta());
 			$uurl = complete_url($strkey);
 			$surl = complete_url($strkey."!");
@@ -87,13 +88,49 @@ if(isset($_POST["url"])) {
 			$msg .= "<br><br>\n$uurl ";
 			//$msg .= "<a href='#' onClick='copyToClipboard(\"".$uurl."\")'>Copy to Clipboard</a><br>\n";
 			$msg .= "<br><br>The stats url is $surl<br>";
-			$msg .= "Remember that attaching a '.' at the end of any URL you have the preview of the URL you're about to be redirected.";
+	//		$msg .= "Remember that attaching a '.' at the end of any URL you have the preview of the URL you're about to be redirected.";
 			$msg .= "</div>";
 		}
 	
 }
 
 ?>
+<html>
+<head>
+<script type="text/javascript">
+var timer;
+
+function search_custom (hint) {
+	
+  if (hint=="") {
+	  document.getElementById("used").innerHTML="";
+	  timer = 0;
+	  return;
+  } 
+  if (window.XMLHttpRequest) {
+ 	 xmlhttp=new XMLHttpRequest();
+  }
+  xmlhttp.onreadystatechange=function() {
+ 	 if (xmlhttp.readyState==4 && xmlhttp.status==200) {
+		document.getElementById("used").innerHTML=xmlhttp.responseText;
+  	  }
+  }
+  xmlhttp.open("GET","search_url.php?h="+hint,true);
+  xmlhttp.send();
+  timer = 0;
+}
+
+function timer_on(hints) {
+	
+		if(timer!=1) {
+			var t= setTimeout(function(){search_custom(document.getElementById("f_custom").value)},3000);
+			timer = 1;
+		}
+}
+
+
+</script>
+
 <script>
 function validate(form) {
 	url = document.getElementById("f_url").value;
@@ -145,6 +182,7 @@ function j(s) {
     }
 }
 </script>
+</head>
 
 <style>
 body {
@@ -178,9 +216,11 @@ if($msg) {
 
 <form onsubmit="return validate(this);" action="index.php" method="post">
 <div>url: <input type=text name=url id=f_url></div>
+<div>Custom URL: <input type=text name=custom id=f_custom onkeyup="timer_on(this.value)"/></div><b id="used"></b><input type=hidden name=available value=true/>
 <div># hits allowed: <input type=text name=max_hits size=3><small>(0/blank for unlimited)</small></div>
 <div>notes?<br><textarea name=notes></textarea></div>
 <div>mail notifications: <input type=text name=email id=f_email></div>
 <div><input type=checkbox name=stats id=f_stats>private statistics </div>
 <input type=submit>
 </form>
+</html>
