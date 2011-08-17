@@ -6,19 +6,20 @@ function is_url($str = "") {
 	$pat = "/^((http|https)(:[\/]{2,2}))?+([^\.][\w-\.]+[\w-]{2,6})(\/[\w- .\/\?%&=]*)?/";		     
 	if(preg_match($pat, $str, $m)) {
 		if($m[2] != "http" && $m[2] != "https") {
-		$str = "http://".$str;
+			$str = "http://".$str;
 		}
 		return $str;
 	}
 	else {
-	echo ("<script type='text/javascript'>alert('wrong URL')</script>");
+		echo ("<script type='text/javascript'>alert('wrong URL')</script>");
 		$str="";
 		return $str;
 	}
-	
+	return false;
 }
+
 function sql_clean($str) {
-	//TODO!
+	$str = mysql_real_escape_string($str);
 	return $str;
 }
 
@@ -77,7 +78,7 @@ function store_url($str, $post_data, $meta_data = array()) {
 		$row = mysql_fetch_assoc($res);
 		$url_id = $row["url_id"];
 	} else {
-		$sql = "INSERT INTO url(url) VALUES('$url')";
+		$sql = sprintf("INSERT INTO url(url) VALUES('%s')",$url);
 		mysql_query($sql);
 		$url_id = mysql_insert_id();
 	}
@@ -89,10 +90,18 @@ function store_url($str, $post_data, $meta_data = array()) {
 	$mail = isset($post_data["email"])?$post_data["email"]:"";
 	$stats = isset($post_data["stats"])?$post_data["stats"]:"";
 	$custom = isset($post_data["custom"])?$post_data["custom"]:"";
+	$exp_date = isset($post_data["exp_date"])?$post_data["exp_date"]:"";
+	$exp_hour = isset($post_data["exp_hour"])?$post_data["exp_hour"]:"";
+	$expiration = date_validation($exp_date, $exp_hour);
+
+	//sanitize
+	$mail = sql_clean($mail);
+	$note = sql_clean($note);
+	$custom = sql_clean($custom);
 	$sql = sprintf(
-		"INSERT INTO instance (url_id, strkey, active, max_hits, notify_email, notes, private_stats) ".
-		"VALUES('%d','%d','1','%d','%s', '%s','%d')",
-		$url_id, rand(0,1000), $hits, $mail, $note, $stats
+		"INSERT INTO instance (url_id, strkey, active, max_hits, notify_email, notes, private_stats, expiration_date) ".
+		"VALUES('%d','%d','1','%d','%s', '%s','%d','%s')",
+		$url_id, rand(0,1000), $hits, $mail, $note, $stats, $expiration
 	);
 	$res = mysql_query($sql);
 	if (mysql_error() || mysql_affected_rows() != 1) {
@@ -171,10 +180,12 @@ function get_url($code = "", $meta = array()){
 
 	if($code != "") {
 		// this sql should count on log with outcome = "ok".......AND l.type = 'access'
+		//sanitize
+		$code = sql_clean($code);
 		$sql = sprintf("
 			SELECT i.instance_id AS iid, u.url AS url, i.active AS active,
 				i.max_hits AS max_hits, i.notify_email AS emails, i.notes AS notes, 
-				i.notifications AS notify, count(l.log_id) AS act_hits
+				i.notifications AS notify, count(l.log_id) AS act_hits, i.expiration_date AS expiration
 			FROM instance AS i
 			LEFT JOIN url AS u
 				ON u.url_id = i.url_id
@@ -189,12 +200,18 @@ function get_url($code = "", $meta = array()){
 			$row = mysql_fetch_assoc($res);
 			
 			//set of business logic rules
+			$exp_date=strtotime($row["expiration"]);
+			$today=strtotime(date("Y-m-d H:i"));
 			if($row["active"] == 0) {
 				$ret["cause"] = "corresponding link is not active any more";
 				store_log($row["iid"],"access","error", $meta);
 				return $ret;
 			} elseif($row["max_hits"] > 0 && $row["act_hits"] > $row["max_hits"]) {
 				$ret["cause"] = "this link had a certain number of allowed hits which has already been reached";
+				store_log($row["iid"],"access","error", $meta);
+				return $ret;
+			} elseif($exp_date!='' && $exp_date < $today ){
+				$ret["cause"] = "this link has expired";
 				store_log($row["iid"],"access","error", $meta);
 				return $ret;
 			}
@@ -307,7 +324,8 @@ function send_activation($mail,$val_code) {
 }
 
 function activate_email($val_code) {
-
+	//sanitize
+	$val_code = sql_clean($val_code);
 	$sql = "SELECT instance_id FROM instance WHERE validation_code = '$val_code'";
 	
 	$res = mysql_query($sql);
@@ -371,7 +389,9 @@ function fill_xml($array) {
 
 function turn_off_notif($inst_id){
 
-	$sql = "SELECT instance_id FROM instance WHERE instance_id = '$inst_id'";
+	//sanitize
+	$inst_id = sql_clean($inst_id);
+	$sql = sprintf("SELECT instance_id FROM instance WHERE instance_id = '%s'",$inst_id);
 	$res = mysql_query($sql);
 	if(mysql_num_rows($res) != 0) {
 		$inst_id = mysql_result($res,0);
@@ -396,7 +416,9 @@ function is_private ($key) {
 }
 
 function is_available ($custom_url) {
-	$sql = "SELECT instance_id FROM instance WHERE strkey = '".$custom_url."'";
+	//sanitize
+	$custom_url = sql_clean($custom_url);
+	$sql = sprintf("SELECT instance_id FROM instance WHERE strkey = '%s'",$custom_url);
 	$res = mysql_query($sql);
 	if(mysql_result($res,0)!=0) {
 		echo "<script type='text/javascript'>alert('That URL already exists.')</script>";
@@ -405,6 +427,23 @@ function is_available ($custom_url) {
 	else 
 		return true;
 
+}
+function date_validation ($date, $hour) {
+	$today = getdate();
+	list($y,$m,$d) = explode('/',$date);
+	if($date == "") 
+		$expiration = NULL;
+
+	elseif(substr_count($date,'/') == 2 && checkdate($m,$d,$y) && $y>=$today['year']) 
+     	 $expiration = $date.' '.$hour;
+            			
+    else {
+    	echo "<script type='text/javascript'>alert('Invalid Date!')</script>";
+    	return 'error';
+    }
+    
+
+	return $expiration;
 }
 
 
