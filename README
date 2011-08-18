@@ -10,12 +10,15 @@ The two main concepts are: url and instance, additionally there are log entries.
 Each url is stored uniquely in the database, if two different users want to add the same url, the url stays the same in a single database row, but a new 'instance' is created. Actually there is exactly one instance for each user/url pair.
 
 URL A -+- INSTANCE 1 +
-       |             Â· -  USER 1
+       |             á -  USER 1
        +- INSTANCE 2 +
        |             
        +- INSTANCE 3 + 
-                     Â· -  USER 2
+                     á -  USER 2
 URL B -+- INSTANCE 4 +
+
+
+**** Two columns has been added to the database, "notifications" and "validation code", the column "notifications" is used to define if you want to receive notifications or not, "validation_code" this code is going to be sent via email in order to activate the notifications for the user who request them.
 
 
 INSTALLATION
